@@ -8,15 +8,14 @@
 import UIKit
 import AVFoundation
 
-enum captureError : Error {
-    case input
-}
 
-class ViewController: UIViewController {
+class ViewController: UIViewController, AVCaptureMetadataOutputObjectsDelegate {
+    var outputMetadataReadableCodeArray: [AVMetadataMachineReadableCodeObject]?
     let captureSession = AVCaptureSession()
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        // ⑧ 承認されたらセッションの設定メソッドを呼ぶ
         switch AVCaptureDevice.authorizationStatus(for: .video) {
         case .authorized:
             self.setupCaptureSession()
@@ -36,11 +35,11 @@ class ViewController: UIViewController {
     }
     
     override func viewDidLayoutSubviews() {  // navigationControllerの高さを取得してからプレビューレイヤーを作成したいのでここで呼び出すことにした
-        // ⑧ プレビューレイヤーの作成
+        // ⑩ プレビューレイヤーの作成
         setupPreviewLayer()
+        // 11 セッションを起動する
         captureSession.startRunning()
     }
-
     
     func setupCaptureSession() {
         // ② 設定開始のメソッドを呼んでセッションの設定を行う
@@ -55,7 +54,11 @@ class ViewController: UIViewController {
         let metadataOutput = AVCaptureMetadataOutput()
         guard captureSession.canAddOutput(metadataOutput) else { return }
         captureSession.addOutput(metadataOutput)
-        // ⑤ 設定を終了する
+        // ⑤ コールバックの処理に使用するデリゲートとディスパッチキューを設定(まだ使用していない)
+        metadataOutput.setMetadataObjectsDelegate(self, queue: DispatchQueue.main)
+        // ⑥ ここで指定したタイプのオブジェクトのみがデリゲートのmetadataOutput(_:didOutput:from:)メソッドに転送され、処理される。
+        metadataOutput.metadataObjectTypes = [.ean13]
+        // ⑦ 設定を終了する
         captureSession.commitConfiguration()
     }
     
@@ -68,7 +71,7 @@ class ViewController: UIViewController {
     }
     
     func setupPreviewLayer() {
-        // ⑦プレビューをセッションに接続し、viewに追加
+        // ⑨ プレビューをセッションに接続し、viewに追加
         let previewLayer = PreviewView().videoPreviewLayer
         previewLayer.session = self.captureSession
         print(self.view.safeAreaInsets.top)
@@ -76,8 +79,16 @@ class ViewController: UIViewController {
         previewLayer.videoGravity = .resizeAspectFill
         self.view.layer.addSublayer(previewLayer)
     }
+    
+    // 12 デリゲートメソッドを利用して読み込めたときの処理を書く
+    func metadataOutput(_ output: AVCaptureMetadataOutput, didOutput metadataObjects: [AVMetadataObject], from connection: AVCaptureConnection) {
+        for metadata in metadataObjects as! [AVMetadataMachineReadableCodeObject] {
+            if metadata.stringValue == nil { continue }
+            print(metadata.stringValue!)
+        }
+    }
 }
-// ⑥ プレビューを作成
+// ⑧ プレビューを作成
 class PreviewView: UIView {
     override class var layerClass: AnyClass {
         return AVCaptureVideoPreviewLayer.self
